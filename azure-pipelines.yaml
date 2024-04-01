@@ -1,0 +1,20 @@
+---
+trigger:
+  - develop
+
+stages:
+  - stage: buildimage
+    displayName: Build docker image and push
+    pool:
+      vmImage: ubuntu-latest
+    jobs:
+      - job: buildnpush
+        displayName: Build and push docker image
+        steps:
+          - task: Docker@2
+            inputs:
+              Dockerfile: "./Dockerfile"
+              command: buildAndPush
+              tags: latest
+              containerRegistry: MyDockerHub
+              repository: moyillavimala/nopforworkshopmar24
