@@ -1,69 +1,13 @@
-# create the build instance 
-FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+ADD . /nop
+WORKDIR /nop/src/Presentation/Nop.Web
+RUN mkdir published && \
+    dotnet publish -c Release -o published/ Nop.Web.csproj && \
+    mkdir ./published/bin  ./published/logs
 
-WORKDIR /src                                                                    
-COPY ./src ./
 
-# restore solution
-RUN dotnet restore NopCommerce.sln
-
-WORKDIR /src/Presentation/Nop.Web   
-
-# build project   
-RUN dotnet build Nop.Web.csproj -c Release
-
-# build plugins
-WORKDIR /src/Plugins
-RUN set -eux; \
-    for dir in *; do \
-        if [ -d "$dir" ]; then \
-            dotnet build "$dir/$dir.csproj" -c Release; \
-        fi; \
-    done
-
-# publish project
-WORKDIR /src/Presentation/Nop.Web   
-RUN dotnet publish Nop.Web.csproj -c Release -o /app/published
-
-WORKDIR /app/published
-
-RUN mkdir logs
-RUN mkdir bin
-
-RUN chmod 775 App_Data \
-              App_Data/DataProtectionKeys \
-              bin \
-              logs \
-              Plugins \
-              wwwroot/bundles \
-              wwwroot/db_backups \
-              wwwroot/files/exportimport \
-              wwwroot/icons \
-              wwwroot/images \
-              wwwroot/images/thumbs \
-              wwwroot/images/uploaded
-
-# create the runtime instance 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS runtime 
-
-# add globalization support
-RUN apk add --no-cache icu-libs icu-data-full
-ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
-
-# installs required packages
-RUN apk add tiff --no-cache --repository http://dl-3.alpinelinux.org/alpine/edge/main/ --allow-untrusted
-RUN apk add libgdiplus --no-cache --repository http://dl-3.alpinelinux.org/alpine/edge/community/ --allow-untrusted
-RUN apk add libc-dev tzdata --no-cache
-
-# copy entrypoint script
-COPY ./entrypoint.sh /entrypoint.sh
-RUN chmod 755 /entrypoint.sh
-
-WORKDIR /app
-
-COPY --from=build /app/published .
-
-ENV ASPNETCORE_URLS=http://+:80
-EXPOSE 80
-                            
-ENTRYPOINT "/entrypoint.sh"
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+COPY --from=build /nop/src/Presentation/Nop.Web/published /nop
+WORKDIR /nop
+EXPOSE 5000
+CMD ["dotnet", "Nop.Web.dll", "--urls", "http://0.0.0.0:5000"]
